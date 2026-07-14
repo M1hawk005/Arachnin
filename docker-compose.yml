@@ -1,0 +1,108 @@
+name: arachnin
+
+x-backend: &backend
+  build:
+    context: ./backend
+  environment: &backend-environment
+    ENVIRONMENT: ${ENVIRONMENT:-development}
+    DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-arachnin}:${POSTGRES_PASSWORD:-arachnin-dev}@postgres:5432/${POSTGRES_DB:-arachnin}
+    BROKER_URL: amqp://${RABBITMQ_USER:-arachnin}:${RABBITMQ_PASSWORD:-arachnin-dev}@rabbitmq:5672//
+    REDIS_URL: redis://redis:6379/0
+    RESULT_BACKEND_URL: redis://redis:6379/1
+    CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+    FETCH_TIMEOUT_SECONDS: ${FETCH_TIMEOUT_SECONDS:-15}
+    MAX_DOCUMENT_BYTES: ${MAX_DOCUMENT_BYTES:-5000000}
+    MAX_REDIRECTS: ${MAX_REDIRECTS:-3}
+  depends_on:
+    postgres:
+      condition: service_healthy
+    rabbitmq:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  restart: unless-stopped
+  networks: [internal]
+
+services:
+  api:
+    <<: *backend
+    command: >-
+      sh -c "alembic upgrade head &&
+      uvicorn app.main:app --host 0.0.0.0 --port 8080"
+    ports:
+      - "${API_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+
+  worker:
+    <<: *backend
+    command: celery -A app.worker.celery_app worker --loglevel=INFO --concurrency=2 --without-mingle --without-gossip
+    healthcheck:
+      disable: true
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [internal]
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-arachnin}
+      POSTGRES_USER: ${POSTGRES_USER:-arachnin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-arachnin-dev}
+    volumes:
+      - postgres_v17_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    networks: [internal]
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-arachnin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-arachnin-dev}
+    ports:
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks: [internal]
+
+  redis:
+    image: redis:8-alpine
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    networks: [internal]
+
+volumes:
+  postgres_v17_data:
+  redis_data:
+
+networks:
+  internal:
+    driver: bridge
