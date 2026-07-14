@@ -1,0 +1,35 @@
+# Secrets and local configuration
+.env
+.env.local
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.db
+*.db-journal
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# JavaScript
+node_modules/
+frontend/dist/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.code-workspace
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
