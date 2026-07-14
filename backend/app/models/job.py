@@ -1,6 +1,6 @@
-import enum
 import uuid
 from datetime import UTC, datetime
+from enum import StrEnum
 
 from sqlalchemy import JSON, DateTime, Enum, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -8,7 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base_class import Base
 
 
-class JobStatus(str, enum.Enum):
+class JobStatus(StrEnum):
     QUEUED = "QUEUED"
     FETCHING = "FETCHING"
     EXTRACTING = "EXTRACTING"
