@@ -1,0 +1,9 @@
+[
+  {"name": "IPv4 loopback", "url": "http://127.0.0.1/", "expected_codes": ["UNSAFE_DESTINATION"]},
+  {"name": "IPv6 loopback", "url": "http://[::1]/", "expected_codes": ["UNSAFE_DESTINATION"]},
+  {"name": "RFC1918 10/8", "url": "http://10.0.0.1/", "expected_codes": ["UNSAFE_DESTINATION"]},
+  {"name": "RFC1918 172.16/12", "url": "http://172.16.0.1/", "expected_codes": ["UNSAFE_DESTINATION"]},
+  {"name": "RFC1918 192.168/16", "url": "http://192.168.1.1/", "expected_codes": ["UNSAFE_DESTINATION"]},
+  {"name": "Cloud metadata link-local", "url": "http://169.254.169.254/latest/meta-data/", "expected_codes": ["UNSAFE_DESTINATION"]},
+  {"name": "URL credentials", "url": "http://user:password@example.com/", "expected_codes": ["INVALID_URL"]}
+]

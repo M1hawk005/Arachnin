@@ -1,0 +1,11 @@
+category,url
+standards,https://www.rfc-editor.org/rfc/rfc9110.html
+security,https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html
+python-docs,https://docs.python.org/3/library/urllib.request.html
+database-docs,https://www.postgresql.org/docs/current/ddl.html
+queue-docs,https://www.rabbitmq.com/tutorials/tutorial-one-python
+worker-docs,https://docs.celeryq.dev/en/stable/getting-started/introduction.html
+cache-docs,https://redis.io/docs/latest/develop/get-started/
+web-docs,https://developer.mozilla.org/en-US/docs/Web/HTTP/Overview
+framework-docs,https://fastapi.tiangolo.com/async/
+github-docs,https://docs.github.com/en/actions/about-github-actions/understanding-github-actions
