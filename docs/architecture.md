@@ -4,17 +4,18 @@
 
 Arachnin accepts a URL from an untrusted caller and makes an outbound request from a privileged server network. That transition is the primary security boundary. The system does not treat URL syntax validation as sufficient.
 
-Before each request—including redirects—the worker:
+Before each request, including redirects, the worker:
 
 1. accepts only HTTP and HTTPS;
 2. rejects embedded credentials;
 3. resolves the hostname;
 4. rejects every non-global address returned by DNS;
-5. disables automatic redirects;
-6. bounds redirect count, elapsed request time, and streamed bytes;
-7. accepts only HTML response types.
+5. pins the connection to the validated address, so DNS cannot rebind to a private host between the check and the connect;
+6. disables automatic redirects;
+7. bounds redirect count, elapsed request time, and streamed bytes;
+8. accepts only HTML response types.
 
-Application validation is defense in depth. A public deployment should run workers in a network namespace with explicit egress policy and no route to instance metadata or private service networks.
+Address pinning closes the DNS-rebinding window in-process, but application validation is still only defense in depth. A public deployment should run workers in a network namespace with explicit egress policy and no route to instance metadata or private service networks.
 
 ## State transitions
 
@@ -46,7 +47,7 @@ Content identity is the SHA-256 hash of normalized extracted text. Chunks are de
 
 ## Privacy
 
-Arachnin stores extracted page text. Operators must define retention based on their use case and the source’s terms. The first release does not ingest authenticated or private pages and does not accept cookies, which keeps user secrets out of jobs and logs.
+Arachnin stores extracted page text. Operators must define retention based on their use case and the source's terms. The first release does not ingest authenticated or private pages and does not accept cookies, which keeps user secrets out of jobs and logs.
 
 ## Observability roadmap
 

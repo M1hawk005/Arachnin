@@ -2,7 +2,7 @@
 
 **A secure web-ingestion boundary for retrieval-augmented generation systems.**
 
-Arachnin turns a public web page into a clean, traceable document and a deterministic set of overlapping chunks. It exists for the unglamorous but important step between “we have a URL” and “this content is safe and useful to index.”
+Arachnin turns a public web page into a clean, traceable document and a deterministic set of overlapping chunks. It exists for the unglamorous but important step between "we have a URL" and "this content is safe and useful to index."
 
 The system is intentionally small enough to understand end to end while still exercising production concerns: untrusted network input, asynchronous work, persistent state, cache failure, schema migrations, typed contracts, and observable progress.
 
@@ -30,8 +30,8 @@ Arachnin owns that boundary. It validates every destination, bounds network read
 | State | PostgreSQL as source of truth; Redis as a disposable status cache |
 | Data contracts | Pydantic request/result models and generated OpenAPI documentation |
 | Retrieval output | Clean text, metadata, SHA-256 identity, configurable overlapping chunks |
-| Operations | Health-gated Compose services, non-root containers, Alembic migrations |
-| Quality | Unit/API tests, coverage gate, Ruff, frontend build, dependency scanning |
+| Operations | Health-gated Compose services, non-root read-only containers, Alembic migrations, multi-arch images on GHCR |
+| Quality | Unit/API tests, coverage gate, Ruff lint + format, CodeQL, image and dependency scanning, frontend build |
 
 ## Architecture
 
@@ -142,7 +142,7 @@ alembic revision --autogenerate -m "describe change"
 
 **Polling instead of WebSockets.** Jobs progress through a handful of coarse states. Short polling keeps the failure model and deployment topology simple; server-sent events would be the next step if progress became more granular.
 
-**DNS validation without IP pinning.** Arachnin rejects non-global resolutions before every request and redirect. A hardened internet-facing deployment should additionally pin the validated address during connection to close the DNS-rebinding gap, and should enforce egress policy at the network layer.
+**Application-level SSRF defense with network-layer backing.** Arachnin rejects non-global resolutions before every request and redirect, then pins the validated address for the connection so the host that was checked is the host that is fetched, closing the DNS-rebinding window in-process. A hardened internet-facing deployment should still enforce egress policy at the network layer as the primary control, since the application cannot be the only thing standing between an untrusted URL and internal services.
 
 **Single-document jobs.** Batch and sitemap ingestion are intentionally outside the first release. The API and worker model can support them, but adding them before operating the single-document path would obscure the core reliability work.
 
@@ -161,8 +161,8 @@ alembic revision --autogenerate -m "describe change"
 
 - JavaScript-rendered pages are not executed.
 - Authentication-gated content is not supported.
-- DNS rebinding should also be mitigated with production egress controls.
-- Robots.txt and publisher-specific crawl policies are the deployer’s responsibility.
+- DNS rebinding is mitigated in-process by IP pinning; production egress controls remain the primary defense.
+- Robots.txt and publisher-specific crawl policies are the deployer's responsibility.
 - The built-in chunker does not estimate embedding-token counts.
 
 These are constraints, not hidden claims. They define where the next engineering work belongs.
@@ -184,4 +184,4 @@ docs/
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
