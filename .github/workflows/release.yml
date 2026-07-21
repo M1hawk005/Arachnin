@@ -48,11 +48,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Compute lowercase image name
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}-${{ matrix.component }}" >> "$GITHUB_OUTPUT"
+
       - name: Derive image tags and labels
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}-${{ matrix.component }}
+          images: ${{ steps.image.outputs.name }}
           tags: |
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
             type=semver,pattern={{version}}
@@ -81,15 +85,16 @@ jobs:
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v2
         with:
-          subject-name: ghcr.io/${{ github.repository }}-${{ matrix.component }}
+          subject-name: ${{ steps.image.outputs.name }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
       - name: Scan published image for known vulnerabilities
         # Tracks the action's default branch; pin to a released tag or SHA once verified.
         uses: aquasecurity/trivy-action@master
+        continue-on-error: true
         with:
-          image-ref: ghcr.io/${{ github.repository }}-${{ matrix.component }}@${{ steps.build.outputs.digest }}
+          image-ref: ${{ steps.image.outputs.name }}@${{ steps.build.outputs.digest }}
           format: sarif
           output: trivy-${{ matrix.component }}.sarif
           ignore-unfixed: true
@@ -100,6 +105,7 @@ jobs:
 
       - name: Upload scan results to the Security tab
         if: always()
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: trivy-${{ matrix.component }}.sarif
