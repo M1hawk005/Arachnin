@@ -33,3 +33,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Deployment handoff notes (kept local, not part of the published project)
+docs/HANDOFF.md
