@@ -86,7 +86,8 @@ jobs:
           push-to-registry: true
 
       - name: Scan published image for known vulnerabilities
-        uses: aquasecurity/trivy-action@0.28.0
+        # Tracks the action's default branch; pin to a released tag or SHA once verified.
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: ghcr.io/${{ github.repository }}-${{ matrix.component }}@${{ steps.build.outputs.digest }}
           format: sarif
