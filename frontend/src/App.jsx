@@ -271,7 +271,7 @@ function App() {
         </section>
       </main>
 
-      <footer><span>Arachnin / v2.0</span><span>Built as a transparent reference implementation.</span><span>MIT License</span></footer>
+      <footer><span>Arachnin / v0.2</span><span>Built as a transparent reference implementation.</span><span>MIT License</span></footer>
     </div>
   );
 }
