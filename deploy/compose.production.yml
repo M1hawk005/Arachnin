@@ -1,0 +1,154 @@
+name: arachnin
+
+x-backend: &backend
+  # Pre-built, multi-arch image published by the Release workflow to GHCR.
+  # Override BACKEND_IMAGE to pin a specific version (e.g. ...-backend:1.4.0).
+  image: ${BACKEND_IMAGE:-ghcr.io/m1hawk005/arachnin-backend:latest}
+  pull_policy: always
+  environment:
+    ENVIRONMENT: production
+    DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?set POSTGRES_USER}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-arachnin}
+    BROKER_URL: amqp://${RABBITMQ_USER:?set RABBITMQ_USER}:${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD}@rabbitmq:5672//
+    REDIS_URL: redis://redis:6379/0
+    RESULT_BACKEND_URL: redis://redis:6379/1
+    CORS_ORIGINS: https://${DOMAIN:?set DOMAIN}
+    FETCH_TIMEOUT_SECONDS: ${FETCH_TIMEOUT_SECONDS:-15}
+    MAX_DOCUMENT_BYTES: ${MAX_DOCUMENT_BYTES:-5000000}
+    MAX_REDIRECTS: ${MAX_REDIRECTS:-3}
+  depends_on:
+    postgres:
+      condition: service_healthy
+    rabbitmq:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+  networks: [internal]
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      frontend:
+        condition: service_healthy
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks: [edge]
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-ghcr.io/m1hawk005/arachnin-frontend:latest}
+    pull_policy: always
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+    security_opt:
+      - no-new-privileges:true
+    networks: [edge, internal]
+
+  api:
+    <<: *backend
+    command: >-
+      sh -c "alembic upgrade head &&
+      uvicorn app.main:app --host 0.0.0.0 --port 8080 --proxy-headers --forwarded-allow-ips=frontend"
+    read_only: true
+    tmpfs: [/tmp]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+
+  worker:
+    <<: *backend
+    command: celery -A app.worker.celery_app worker --loglevel=INFO --concurrency=${WORKER_CONCURRENCY:-2} --without-mingle --without-gossip
+    read_only: true
+    tmpfs: [/tmp]
+    networks: [internal, egress]
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-arachnin}
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - postgres_v17_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks: [internal]
+
+  rabbitmq:
+    image: rabbitmq:4-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?set RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks: [internal]
+
+  redis:
+    image: redis:8-alpine
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks: [internal]
+
+volumes:
+  caddy_data:
+  caddy_config:
+  postgres_v17_data:
+  rabbitmq_data:
+  redis_data:
+
+networks:
+  edge:
+  # Fixed subnet so a host egress firewall (DOCKER-USER chain) can match the
+  # worker's outbound traffic by source and block private/metadata ranges.
+  egress:
+    ipam:
+      config:
+        - subnet: 172.31.72.0/24
+  internal:
+    internal: true
