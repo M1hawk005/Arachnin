@@ -1,3 +1,5 @@
+import socket
+import requests
 from requests import RequestException
 
 from app.crud import job_crud
@@ -40,7 +42,15 @@ def ingest_document(self, job_id: str) -> dict:
         job_crud.fail_job(db, job, exc.code, str(exc))
         cache_job_status(job_id, JobStatus.FAILED.value)
         return {"job_id": job_id, "status": JobStatus.FAILED.value, "error": exc.code}
+    except (requests.Timeout, TimeoutError, socket.timeout) as exc:
+        job_crud.fail_job(db, job, "TIMEOUT", "The request timed out.")
+        cache_job_status(job_id, JobStatus.FAILED.value)
+        return {"job_id": job_id, "status": JobStatus.FAILED.value, "error": "TIMEOUT"}
     except (RequestException, ConnectionError) as exc:
+        if isinstance(exc, requests.Timeout):
+            job_crud.fail_job(db, job, "TIMEOUT", "The request timed out.")
+            cache_job_status(job_id, JobStatus.FAILED.value)
+            return {"job_id": job_id, "status": JobStatus.FAILED.value, "error": "TIMEOUT"}
         if self.request.retries < self.max_retries:
             job_crud.set_status(db, job, JobStatus.QUEUED)
             cache_job_status(job_id, JobStatus.QUEUED.value)

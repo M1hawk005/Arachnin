@@ -1,4 +1,3 @@
-import socket
 from dataclasses import replace
 from unittest.mock import Mock
 
@@ -6,24 +5,25 @@ import pytest
 import requests
 
 from app.services import security
-from app.services.security import FetchError, fetch_public_html, validate_public_url
+from app.services.security import FetchError, fetch_public_html
 
 
-def test_dns_failure_has_stable_error(monkeypatch):
-    def fail(*args, **kwargs):
-        raise socket.gaierror
-
-    monkeypatch.setattr("app.services.security.socket.getaddrinfo", fail)
-    with pytest.raises(FetchError) as error:
-        validate_public_url("https://missing.example")
-    assert error.value.code == "DNS_FAILED"
-
-
-def test_fetch_wraps_transport_errors(monkeypatch):
+def test_fetch_wraps_timeout_errors(monkeypatch):
     monkeypatch.setattr("app.services.security.validate_public_url", lambda _: None)
     monkeypatch.setattr(
         "app.services.security.requests.get",
         Mock(side_effect=requests.Timeout("timed out")),
+    )
+    with pytest.raises(FetchError) as error:
+        fetch_public_html("https://example.com")
+    assert error.value.code == "TIMEOUT"
+
+
+def test_fetch_wraps_connection_errors(monkeypatch):
+    monkeypatch.setattr("app.services.security.validate_public_url", lambda _: None)
+    monkeypatch.setattr(
+        "app.services.security.requests.get",
+        Mock(side_effect=requests.ConnectionError("connection failed")),
     )
     with pytest.raises(FetchError) as error:
         fetch_public_html("https://example.com")

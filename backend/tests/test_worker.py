@@ -96,3 +96,23 @@ def test_worker_handles_missing_job(monkeypatch):
 
     assert ingest_document.run("missing") == {"job_id": "missing", "status": "NOT_FOUND"}
     assert closed == [True]
+
+
+def test_worker_records_timeout_failure(db, monkeypatch):
+    job = job_crud.create_job(
+        db, url="https://example.com/article", chunk_size=500, chunk_overlap=50
+    )
+
+    def timeout(_):
+        raise FetchError("TIMEOUT", "The request timed out.")
+
+    monkeypatch.setattr("app.worker.tasks.fetch_public_html", timeout)
+    monkeypatch.setattr("app.worker.tasks.cache_job_status", lambda *args: None)
+
+    outcome = ingest_document.run(job.id)
+
+    db.expire_all()
+    failed = job_crud.get_job(db, job.id)
+    assert outcome["error"] == "TIMEOUT"
+    assert failed.status == JobStatus.FAILED
+    assert failed.error_code == "TIMEOUT"

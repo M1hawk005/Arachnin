@@ -12,7 +12,8 @@ from app.schemas.extract import (
     JobStatusResponse,
     JobSummary,
 )
-from app.services.security import FetchError, validate_public_url
+from app.ingestion.validators import validate_public_url
+from app.services.security import FetchError
 from app.utils.redis_client import cache_job_status, get_cached_status
 from app.worker.tasks import ingest_document
 

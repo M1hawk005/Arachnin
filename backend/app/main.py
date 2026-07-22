@@ -7,7 +7,7 @@ from app.config import settings
 app = FastAPI(
     title=settings.project_name,
     summary="Secure, asynchronous web ingestion for RAG pipelines",
-    version="0.2.0",
+    version="0.2.1",
     contact={"name": "Arachnin maintainers", "url": "https://github.com/M1hawk005/Arachnin"},
     docs_url="/api/docs",
     openapi_url="/api/openapi.json",
